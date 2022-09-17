@@ -1,0 +1,111 @@
+import os
+import glob
+from osgeo import gdal
+from osgeo.gdalconst import *
+import shutil
+import json
+
+from airflow.models import DAG
+from airflow.utils.dates import days_ago
+from airflow.operators.python import PythonOperator
+from airflow.models import Variable
+
+from raster_mosaic import create_mosaics_in_batch
+
+folder_name = 'co-challenge/2019-10-15'
+folder_path = 'all_tifs'
+parent_dir = '/home/atakan/Desktop/satellite_data'
+
+def list_tifs_by_size(folder_name,parent_dir,folder_path):
+    list_of_files = filter(os.path.isfile, glob.glob(folder_name + '/**/*', recursive=True))
+
+    files_with_size = [(file_path.split("/")[-1], os.stat(file_path).st_size, file_path) for file_path in list_of_files]
+    sorted_files_with_size = sorted(files_with_size, key=lambda tup: tup[1],reverse=True)
+
+    print(f"number of files: {len(sorted_files_with_size)}")
+
+    for file_name_displayed, file_size, file_path in sorted_files_with_size:
+        print(file_size, '==>', file_name_displayed)
+
+    all_tifs_path = os.path.join(parent_dir,folder_path)
+    try:
+        os.mkdir(all_tifs_path)
+    except Exception as e:
+        print(e)
+
+    for file_name_displayed, file_size,file_path in sorted_files_with_size:
+        shutil.move(file_path,all_tifs_path)
+
+    path_to_be_removed = os.path.join(parent_dir,folder_name)
+    shutil.rmtree(path_to_be_removed)
+
+def mapping_files(tif_file,band_group):
+    for b in band_group:
+        if b in tif_file:
+            new_b = os.path.join(folder_path,b)
+            new_f = os.path.join(folder_path,tif_file)
+            try:
+                shutil.move(new_f,new_b)
+            except Exception as e:
+                print(f"{new_f} couldn't be moved")
+                print(e)
+
+def create_bands(folder_path):
+    import threading
+
+    all_tif_files = os.listdir(folder_path)
+    band_group = []
+    for f in all_tif_files:
+        band = "_".join(f.split("_")[4:6])
+        band_group.append(band)
+
+    band_group = set(band_group)
+    print(f"band group: {band_group}")
+
+    for b in band_group:
+        new_b = os.path.join(folder_path,b)
+        os.mkdir(new_b)
+
+    for tif_file in all_tif_files:
+        t1 = threading.Thread(target=mapping_files,args=[tif_file,band_group])
+        t1.start()
+
+def analyse_tif(file_name):
+    ds = gdal.Open(file_name, GA_ReadOnly)
+    if ds is None:
+        print(f'{file_name} not opened')
+        return
+    
+    options = gdal.InfoOptions(format='json')
+    infos = gdal.Info(ds=ds,options=options)
+    ref_system = infos.get('coordinateSystem').get('wkt')[:15].replace('PROJCRS["','')
+    size = infos.get('size')
+    print(f"Spatial Reference System of the file is: {ref_system}")
+    print(f"Raster's pixel size: {size[0]},{size[1]}")
+
+    with open("raster_meta.json","w") as outfile:
+        json.dump(infos,outfile)
+    
+def create_mosaics(folder_path):
+    create_mosaics_in_batch(folder_path)
+
+op_kwargs = {
+    "folder_name" = 'co-challenge/2019-10-15'
+    "folder_path" = 'all_tifs'
+    "parent_dir" = '/home/atakan/Desktop/satellite_data',
+}
+analyse_kwargs = {
+    "file_name" = 'all_tifs/B04_10m/patched_sentinel_2_2019-10-15_B04_10m_33_N578_W06_1000cm_roff_104_coff_440.tif'
+}
+
+args  ={"owner": "Airflow", "start_date":days_ago(0)}
+dag = DAG(dag_id="pipeline_dag",default_args=args,schedule_interval='0 1 * * *')
+
+with dag:
+    listing_tifs_by_size = PythonOperator(task_id='listing_tifs_by_size', python_callable=list_tifs_by_size,op_kwargs=op_kwargs)
+    creating_bands = PythonOperator(task_id='creating_bands',python_callable=create_bands,op_kwargs=op_kwargs)
+    anlaysing_tif = PythonOperator(task_id='analysing_tig',python_callable=analyse_tif,op_kwargs=analyse_kwargs) #can be excluded for production pipeline
+    creating_mosaics = PythonOperator(task_id='creating_mosaics',python_callable=create_mosaics,op_kwargs=op_kwargs)
+
+listing_tifs_by_size >> creating_bands >> anlaysing_tif >> creating_mosaics
+
