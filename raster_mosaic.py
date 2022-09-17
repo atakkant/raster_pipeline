@@ -55,4 +55,4 @@ def create_mosaics_in_batch(tifs_path):
 def main(tifs_path):
     create_mosaics_in_batch(tifs_path)
 
-main("all_tifs")
+#main("all_tifs")
