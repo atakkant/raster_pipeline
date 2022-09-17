@@ -90,15 +90,15 @@ def create_mosaics(folder_path):
     create_mosaics_in_batch(folder_path)
 
 op_kwargs = {
-    "folder_name" = 'co-challenge/2019-10-15'
-    "folder_path" = 'all_tifs'
-    "parent_dir" = '/home/atakan/Desktop/satellite_data',
+    "folder_name": 'co-challenge/2019-10-15'
+    "folder_path": 'all_tifs'
+    "parent_dir": '/home/atakan/Desktop/satellite_data',
 }
 analyse_kwargs = {
-    "file_name" = 'all_tifs/B04_10m/patched_sentinel_2_2019-10-15_B04_10m_33_N578_W06_1000cm_roff_104_coff_440.tif'
+    "file_name": 'all_tifs/B04_10m/patched_sentinel_2_2019-10-15_B04_10m_33_N578_W06_1000cm_roff_104_coff_440.tif'
 }
 
-args  ={"owner": "Airflow", "start_date":days_ago(0)}
+args = {"owner": "Airflow", "start_date":days_ago(0)}
 dag = DAG(dag_id="pipeline_dag",default_args=args,schedule_interval='0 1 * * *')
 
 with dag:
@@ -107,5 +107,5 @@ with dag:
     anlaysing_tif = PythonOperator(task_id='analysing_tig',python_callable=analyse_tif,op_kwargs=analyse_kwargs) #can be excluded for production pipeline
     creating_mosaics = PythonOperator(task_id='creating_mosaics',python_callable=create_mosaics,op_kwargs=op_kwargs)
 
-listing_tifs_by_size >> creating_bands >> anlaysing_tif >> creating_mosaics
+    listing_tifs_by_size >> creating_bands >> anlaysing_tif >> creating_mosaics
 
