@@ -14,7 +14,7 @@ from raster_mosaic import create_mosaics_in_batch
 
 folder_name = 'co-challenge/2019-10-15'
 folder_path = 'all_tifs'
-parent_dir = '/home/atakan/Desktop/satellite_data'
+parent_dir = '/home/airflow/dags/satellite_data'
 
 def list_tifs_by_size(folder_name,parent_dir,folder_path):
     list_of_files = filter(os.path.isfile, glob.glob(folder_name + '/**/*', recursive=True))
@@ -99,7 +99,7 @@ analyse_kwargs = {
 }
 
 args = {"owner": "Airflow", "start_date":days_ago(0)}
-dag = DAG(dag_id="pipeline_dag",default_args=args,schedule_interval='0 1 * * *')
+dag = DAG(dag_id="satt_DAG",default_args=args,schedule_interval='0 1 * * *')
 
 with dag:
     listing_tifs_by_size = PythonOperator(task_id='listing_tifs_by_size', python_callable=list_tifs_by_size,op_kwargs=op_kwargs)
