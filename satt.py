@@ -43,9 +43,10 @@ def mapping_files(tif_file,band_group):
                 print(f"{new_f} couldn't be moved")
                 print(e)
 
-def create_bands():
+def create_bands(parent_dir,folder_path):
     import threading
 
+    folder_path = os.path.join(parent_dir,folder_path)
     all_tif_files = os.listdir(folder_path)
     band_group = []
     for f in all_tif_files:
